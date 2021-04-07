@@ -1,0 +1,159 @@
+from collections import namedtuple
+from copy import copy
+
+
+class Array(object):
+    def __init__(self, array_len:int, init=None):
+        self.array_len = array_len
+        self.array = [init] * array_len
+
+    def __iter__(self):
+        for i in self.array:
+            yield i
+
+    def __setitem__(self, key, value):
+        self.array[key] = value
+
+    def __getitem__(self, key):
+        return self.array[key]
+
+
+sole = namedtuple('sole', ('key', 'values'))
+
+
+class HashTable(object):
+    Empty = None
+    CLEAR = sole(None, None)
+
+    def __init__(self, hash_table_len=16):
+        self._len = 0
+        self._table_len = hash_table_len
+        self._table = Array(hash_table_len)
+
+    def _hash(self, key):
+        return abs(hash(key) % self._table_len)
+
+    def _find_sole(self, key):
+        index = self._hash(key)
+        if self._table[index] is HashTable.Empty or self._table[index] is HashTable.CLEAR:
+            return index
+        if self._table[index].key == key:
+            return index
+        while self._table[index] is not HashTable.Empty:
+            index = (index * 5 + 1) % self._table_len
+            if self._table[index] is HashTable.Empty or self._table[index] is HashTable.CLEAR:
+                return index
+
+    def _find_key(self, key):
+        original = index = self._hash(key)
+        if self._table[index] == HashTable.Empty:
+            return None
+        while self._table[index] is not HashTable.Empty:
+            if self._table[index].key == key:
+                return index
+            else:
+                index = (index * 5 + 1) % self._table_len
+                if original == index:
+                    break
+        return None
+
+    def add(self, key, values):
+        index = self._find_sole(key)
+        self._table[index] = sole(key, values)
+        self._len += 1
+        if self._len / self._table_len > 0.8:
+            self._expansion()
+
+    def get(self, key):
+        index = self._find_key(key)
+        if not index:
+            raise KeyError()
+        return self._table[index].values
+
+    def delete(self, key):
+        index = self._find_key(key)
+        if not index:
+            raise KeyError()
+        self._len -= 1
+        values = self._table[index].values
+        self._table[index] = HashTable.CLEAR
+        return values
+
+    def _expansion(self):
+        self._table_len = self._table_len * 2
+        old_table = copy(self._table)
+        self._table = Array(self._table_len)
+        for row in old_table:
+            if row is HashTable.Empty or row is HashTable.CLEAR:
+                continue
+            self._table[self._find_sole(row.key)] = row
+
+    def __len__(self):
+        return self._table_len
+
+    @property
+    def length(self):
+        return self._len
+
+    def __iter__(self):
+        for i in self._table:
+            if i is not HashTable.Empty and i is not HashTable.CLEAR:
+                yield i
+
+
+class UserDict(HashTable):
+    HASHLEN = 8
+
+    def __init__(self, *args, **kwargs):
+        if UserDict.HASHLEN % 2:
+            UserDict.HASHLEN = 8
+        super(UserDict, self).__init__(UserDict.HASHLEN)
+        if isinstance(args, HashTable):
+            for arg in args:
+                self.add(arg.key, arg.values)
+
+        if isinstance(args, dict):
+            for k, v in args.items():
+                self.add(k, v)
+        for k, v in kwargs.items():
+            self.add(k, v)
+
+    def update(self, item:HashTable):
+        for i in item:
+            self.add(i.key, i.values)
+        return True
+
+    def __setitem__(self, key, value):
+        self.add(key, value)
+        return True
+
+    def __getitem__(self, key):
+        return self.get(key)
+
+    def pop(self, key):
+        return self.delete(key)
+
+    def items(self):
+        for i in self:
+            yield i.key, i.values
+
+    def keys(self):
+        for i in self:
+            # if i is not HashTable.Empty and i is not HashTable.CLEAR:
+            yield i.key
+
+    def values(self):
+        for i in self:
+            # if i is not HashTable.Empty and i is not HashTable.CLEAR:
+            yield i.values
+
+
+if __name__ == '__main__':
+    u = UserDict()
+    UserDict.HASHLEN = 64
+    for i in range(ord('a'), ord('z')):
+        u.add(chr(i), chr(i))
+    u['a'] = 'm'
+    print(u.length)
+    print(len(u))
+    print(u.get('a'))
